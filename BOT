@@ -1,0 +1,110 @@
+import discord
+from discord.ext import commands
+from discord import app_commands
+
+# הגדרת הבוט והרשאות חובה (Intents)
+intents = discord.Intents.default()
+intents.message_content = True
+intents.members = True
+
+bot = commands.Bot(command_prefix="!", intents=intents)
+
+# ערוצים של הליגה - מעודכנים לפי ה-ID של השרת שלך
+SIGNINGS_CHANNEL_ID = 1542997467463811072  # החדר #new-signings המעודכן
+TEAM_CREATION_CHANNEL_ID = 1542998671325405325  # החדר #team-creation שהגדרת קודם
+
+# ערוצים אחרים שתוכל לעדכן בהמשך במידת הצורך
+RELEASES_CHANNEL_ID = 123456789012345678  
+LEADERBOARD_CHANNEL_ID = 123456789012345678 
+
+@bot.event
+async def on_ready():
+    print(f'🤖 הבוט {bot.user.name} מחובר ומוכן לעבודה ב-Clubs League IL!')
+    try:
+        # סנכרון פקודות הסלאש עם הדיסקורד
+        synced = await bot.tree.sync()
+        print(f"🔄 סונכרנו {len(synced)} פקודות סלאש בהצלחה.")
+    except Exception as e:
+        print(f"❌ שגיאה בסנכרון פקודות: {e}")
+
+# 1. פקודת החתמת שחקן חדש (מעודכנת לערוץ החדש שלך)
+@bot.tree.command(name="sign", description="הכרזה על החתמת שחקן חדש במועדון")
+@app_commands.describe(team="שם המועדון המחתים", player="השחקן שהוחתם", position="עמדת השחקן (GK, DF, MF, FW)")
+async def sign(interaction: discord.Interaction, team: str, player: discord.Member, position: str):
+    channel = bot.get_channel(SIGNINGS_CHANNEL_ID)
+    if not channel:
+        await interaction.response.send_message("❌ ערוץ ההחתמות לא נמצא במערכת הבוט.", ephemeral=True)
+        return
+
+    embed = discord.Embed(
+        title="📝 החתמה רשמית ב-Clubs league IL! 🔥",
+        color=0x00A8FF,  # כחול ספורטיבי נקי
+        description=f"• **שם המועדון:** {team}\n• **השחקן המוחתם:** {player.mention}\n• **עמדת השחקן:** {position}\n• **הגורם המחתים:** {interaction.user.mention}"
+    )
+    embed.add_field(name="⚽ בהצלחה!", value="ברוך הבא למועדון ובהצלחה בעונה הקרובה!", inline=False)
+    embed.set_footer(text="Clubs League IL | Official System")
+    
+    await channel.send(embed=embed)
+    await interaction.response.send_message(f"✅ ההחתמה של {player.name} פורסמה בהצלחה בערוץ ההחתמות!", ephemeral=True)
+
+# 2. הגשת בקשה ליצירת קבוצה (מקושרת לערוץ הקבוצות שלך)
+@bot.tree.command(name="team_request", description="הגשת בקשה רשמית לפתיחת מועדון חדש בליגה")
+@app_commands.describe(
+    team_name="שם המועדון בעברית ובאנגלית",
+    logo_url="קישור ישיר לתמונת הלוגו של המועדון",
+    captain="תיוג הקפטן של הקבוצה",
+    players_list="שמות ותיוגים של 5 שחקני חובה בסגל (הפרד בפסיק)"
+)
+async def team_request(
+    interaction: discord.Interaction, 
+    team_name: str, 
+    logo_url: str, 
+    captain: discord.Member, 
+    players_list: str
+):
+    channel = bot.get_channel(TEAM_CREATION_CHANNEL_ID)
+    if not channel:
+        await interaction.response.send_message("❌ ערוץ הגשת הבקשות לא נמצא במערכת הבוט.", ephemeral=True)
+        return
+
+    embed = discord.Embed(
+        title="🛡️ בקשה חדשה לפתיחת מועדון - Clubs League IL ⚽",
+        color=0x00A8FF,
+        description=f"🔄 הוגשה בקשה רשמית לפתיחת קבוצה חדשה על ידי המשתמש: {interaction.user.mention}"
+    )
+    embed.add_field(name="📋 שם המועדון:", value=team_name, inline=False)
+    embed.add_field(name="🏢 בעלים (Team Owner):", value=interaction.user.mention, inline=True)
+    embed.add_field(name="👑 קפטן (Team Captain):", value=captain.mention, inline=True)
+    embed.add_field(name="🏃‍♂️ סגל שחקנים ראשוני:", value=players_list, inline=False)
+    
+    if logo_url.startswith("http"):
+        embed.set_thumbnail(url=logo_url)
+        
+    embed.set_footer(text="החלטת צוות הניהול: המתן לאישור של אחראי קבוצות")
+
+    msg = await channel.send(embed=embed)
+    await msg.add_reaction("✅")
+    await msg.add_reaction("❌")
+    
+    await interaction.response.send_message("✅ בקשתך לפתיחת קבוצה נשלחה בהצלחה לבדיקת הנהלת הליגה!", ephemeral=True)
+
+# 3. פקודת שחרור שחקן מהסגל
+@bot.tree.command(name="release", description="הכרזה על שחרור שחקן מהסגל")
+async def release(interaction: discord.Interaction, team: str, player: discord.Member):
+    channel = bot.get_channel(RELEASES_CHANNEL_ID)
+    if not channel:
+        await interaction.response.send_message("❌ ערוץ השחרורים לא נמצא.", ephemeral=True)
+        return
+
+    embed = discord.Embed(
+        title="❌ הודעת שחרור שחקן ❌",
+        color=0xE74C3C,
+        description=f"• **שם המועדון:** {team}\n• **השחקן המשוחרר:** {player.mention}\n\n👋 תודה על התרומה למועדון ובהצלחה בהמשך הדרך כשחקן חופשי!"
+    )
+    embed.set_footer(text="Clubs League IL | Official System")
+    
+    await channel.send(embed=embed)
+    await interaction.response.send_message(f"✅ הודעת השחרור של {player.name} פורסמה.", ephemeral=True)
+
+# הכנס את הטוקן הסודי שלך מתוך ה-Discord Developer Portal בשורה מתחת
+bot.run(MTU0MzAwMTM3NTg3MTM0NDc1MQ.G3NFQD.LiE2BmrT0zitoPiAM-rMj3yloBWznRE_IhhJ1Y)
